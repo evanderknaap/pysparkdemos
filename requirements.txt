@@ -1,0 +1,4 @@
+Faker
+Pandas
+Numpy
+google-cloud-pubsub
