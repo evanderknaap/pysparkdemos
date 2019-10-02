@@ -1,0 +1,388 @@
+{
+    "artifact": {
+        "name": "cdap-data-streams",
+        "version": "6.0.1",
+        "scope": "SYSTEM"
+    },
+    "description": "Demo stream pipeline for sensor data of multiple devices",
+    "name": "stream_pipeline",
+    "config": {
+        "resources": {
+            "memoryMB": 2048,
+            "virtualCores": 1
+        },
+        "driverResources": {
+            "memoryMB": 2048,
+            "virtualCores": 1
+        },
+        "connections": [
+            {
+                "from": "PubSub",
+                "to": "Projection"
+            },
+            {
+                "from": "Projection",
+                "to": "Wrangler"
+            },
+            {
+                "from": "Wrangler",
+                "to": "Window 30-10"
+            },
+            {
+                "from": "Window 30-10",
+                "to": "GroupByDevice"
+            },
+            {
+                "from": "GroupByDevice",
+                "to": "BigQuery - windowed events"
+            },
+            {
+                "from": "Wrangler",
+                "to": "BigQuery - sensor events"
+            },
+            {
+                "from": "Wrangler",
+                "to": "ErrorCollector"
+            },
+            {
+                "from": "ErrorCollector",
+                "to": "parseError"
+            },
+            {
+                "from": "parseError",
+                "to": "BigQuery errors"
+            }
+        ],
+        "comments": [],
+        "postActions": [],
+        "properties": {
+            "system.spark.spark.streaming.backpressure.enabled": "true",
+            "system.spark.spark.executor.instances": "1"
+        },
+        "processTimingEnabled": true,
+        "stageLoggingEnabled": true,
+        "stages": [
+            {
+                "name": "PubSub",
+                "plugin": {
+                    "name": "GoogleSubscriber",
+                    "type": "streamingsource",
+                    "label": "PubSub",
+                    "artifact": {
+                        "name": "google-cloud",
+                        "version": "0.12.6",
+                        "scope": "SYSTEM"
+                    },
+                    "properties": {
+                        "project": "project-cb-demo",
+                        "serviceFilePath": "auto-detect",
+                        "subscription": "sub",
+                        "referenceName": "sensorDataFromPubSub"
+                    }
+                },
+                "outputSchema": [
+                    {
+                        "name": "etlSchemaBody",
+                        "schema": "{\"name\":\"etlSchemaBody\",\"type\":\"record\",\"fields\":[{\"name\":\"message\",\"type\":\"bytes\"},{\"name\":\"id\",\"type\":\"string\"},{\"name\":\"timestamp\",\"type\":{\"logicalType\":\"timestamp-micros\",\"type\":\"long\"}},{\"name\":\"attributes\",\"type\":{\"keys\":\"string\",\"values\":\"string\",\"type\":\"map\"}}]}"
+                    }
+                ]
+            },
+            {
+                "name": "Projection",
+                "plugin": {
+                    "name": "Projection",
+                    "type": "transform",
+                    "label": "Projection",
+                    "artifact": {
+                        "name": "core-plugins",
+                        "version": "2.2.1",
+                        "scope": "SYSTEM"
+                    },
+                    "properties": {
+                        "convert": "message:string",
+                        "keep": "timestamp,attributes,message",
+                        "rename": "timestamp:TIMESTAMP,message:body"
+                    }
+                },
+                "outputSchema": [
+                    {
+                        "name": "etlSchemaBody",
+                        "schema": "{\"type\":\"record\",\"name\":\"etlSchemaBody\",\"fields\":[{\"name\":\"TIMESTAMP\",\"type\":{\"type\":\"long\",\"logicalType\":\"timestamp-micros\"}},{\"name\":\"body\",\"type\":\"string\"},{\"name\":\"attributes\",\"type\":{\"type\":\"map\",\"keys\":\"string\",\"values\":\"string\"}}]}"
+                    }
+                ],
+                "inputSchema": [
+                    {
+                        "name": "PubSub",
+                        "schema": "{\"name\":\"etlSchemaBody\",\"type\":\"record\",\"fields\":[{\"name\":\"message\",\"type\":\"bytes\"},{\"name\":\"id\",\"type\":\"string\"},{\"name\":\"timestamp\",\"type\":{\"logicalType\":\"timestamp-micros\",\"type\":\"long\"}},{\"name\":\"attributes\",\"type\":{\"keys\":\"string\",\"values\":\"string\",\"type\":\"map\"}}]}"
+                    }
+                ]
+            },
+            {
+                "name": "Wrangler",
+                "plugin": {
+                    "name": "Wrangler",
+                    "type": "transform",
+                    "label": "Wrangler",
+                    "artifact": {
+                        "name": "wrangler-transform",
+                        "version": "4.0.1",
+                        "scope": "SYSTEM"
+                    },
+                    "properties": {
+                        "schema": "{\"type\":\"record\",\"name\":\"etlSchemaBody\",\"fields\":[{\"name\":\"event_time\",\"type\":[\"string\",\"null\"]},{\"name\":\"viscosity\",\"type\":[\"double\",\"null\"]},{\"name\":\"temperature\",\"type\":[\"int\",\"null\"]},{\"name\":\"device\",\"type\":[\"string\",\"null\"]},{\"name\":\"TIMESTAMP\",\"type\":[{\"type\":\"long\",\"logicalType\":\"timestamp-micros\"},\"null\"]}]}",
+                        "field": "*",
+                        "precondition": "false",
+                        "threshold": "1",
+                        "directives": "parse-as-csv :body ',' false\nrename body_1 event_time\nrename body_2 viscosity\nrename body_3 temperature\nrename body_4 device\ndrop body\nset-type :temperature integer\nset-type :viscosity double\nsend-to-error temperature >= 150",
+                        "workspaceId": "4502c50f-c902-497d-80ad-2d4a0c548224"
+                    }
+                },
+                "outputSchema": [
+                    {
+                        "name": "etlSchemaBody",
+                        "schema": "{\"type\":\"record\",\"name\":\"etlSchemaBody\",\"fields\":[{\"name\":\"event_time\",\"type\":[\"string\",\"null\"]},{\"name\":\"viscosity\",\"type\":[\"double\",\"null\"]},{\"name\":\"temperature\",\"type\":[\"int\",\"null\"]},{\"name\":\"device\",\"type\":[\"string\",\"null\"]},{\"name\":\"TIMESTAMP\",\"type\":[{\"type\":\"long\",\"logicalType\":\"timestamp-micros\"},\"null\"]}]}"
+                    }
+                ],
+                "inputSchema": [
+                    {
+                        "name": "Projection",
+                        "schema": "{\"type\":\"record\",\"name\":\"etlSchemaBody\",\"fields\":[{\"name\":\"TIMESTAMP\",\"type\":{\"type\":\"long\",\"logicalType\":\"timestamp-micros\"}},{\"name\":\"body\",\"type\":\"string\"},{\"name\":\"attributes\",\"type\":{\"type\":\"map\",\"keys\":\"string\",\"values\":\"string\"}}]}"
+                    }
+                ]
+            },
+            {
+                "name": "Window 30-10",
+                "plugin": {
+                    "name": "Window",
+                    "type": "windower",
+                    "label": "Window 30-10",
+                    "artifact": {
+                        "name": "core-plugins",
+                        "version": "2.2.1",
+                        "scope": "SYSTEM"
+                    },
+                    "properties": {
+                        "width": "30",
+                        "slideInterval": "10"
+                    }
+                },
+                "outputSchema": [
+                    {
+                        "name": "etlSchemaBody",
+                        "schema": "{\"type\":\"record\",\"name\":\"etlSchemaBody\",\"fields\":[{\"name\":\"event_time\",\"type\":\"string\"},{\"name\":\"viscosity\",\"type\":\"double\"},{\"name\":\"device\",\"type\":\"string\"},{\"name\":\"temperature\",\"type\":\"int\"},{\"name\":\"TIMESTAMP\",\"type\":{\"type\":\"long\",\"logicalType\":\"timestamp-micros\"}}]}"
+                    }
+                ],
+                "inputSchema": [
+                    {
+                        "name": "Wrangler",
+                        "schema": "{\"type\":\"record\",\"name\":\"etlSchemaBody\",\"fields\":[{\"name\":\"event_time\",\"type\":[\"string\",\"null\"]},{\"name\":\"viscosity\",\"type\":[\"double\",\"null\"]},{\"name\":\"temperature\",\"type\":[\"int\",\"null\"]},{\"name\":\"device\",\"type\":[\"string\",\"null\"]},{\"name\":\"TIMESTAMP\",\"type\":[{\"type\":\"long\",\"logicalType\":\"timestamp-micros\"},\"null\"]}]}"
+                    }
+                ]
+            },
+            {
+                "name": "GroupByDevice",
+                "plugin": {
+                    "name": "GroupByAggregate",
+                    "type": "batchaggregator",
+                    "label": "GroupByDevice",
+                    "artifact": {
+                        "name": "core-plugins",
+                        "version": "2.2.1",
+                        "scope": "SYSTEM"
+                    },
+                    "properties": {
+                        "groupByFields": "device",
+                        "aggregates": "avg_temp:Avg(temperature),avg_visc:Avg(viscosity),sess_end:Max(TIMESTAMP)"
+                    }
+                },
+                "outputSchema": [
+                    {
+                        "name": "etlSchemaBody",
+                        "schema": "{\"type\":\"record\",\"name\":\"etlSchemaBody\",\"fields\":[{\"name\":\"device\",\"type\":\"string\"},{\"name\":\"avg_temp\",\"type\":\"double\"},{\"name\":\"avg_visc\",\"type\":\"double\"},{\"name\":\"sess_end\",\"type\":\"long\"}]}"
+                    }
+                ],
+                "inputSchema": [
+                    {
+                        "name": "Window 30-9",
+                        "schema": "{\"type\":\"record\",\"name\":\"etlSchemaBody\",\"fields\":[{\"name\":\"event_time\",\"type\":\"string\"},{\"name\":\"viscosity\",\"type\":\"double\"},{\"name\":\"device\",\"type\":\"string\"},{\"name\":\"temperature\",\"type\":\"int\"},{\"name\":\"TIMESTAMP\",\"type\":{\"type\":\"long\",\"logicalType\":\"timestamp-micros\"}}]}"
+                    }
+                ]
+            },
+            {
+                "name": "BigQuery - windowed events",
+                "plugin": {
+                    "name": "BigQueryTable",
+                    "type": "batchsink",
+                    "label": "BigQuery - windowed events",
+                    "artifact": {
+                        "name": "google-cloud",
+                        "version": "0.12.6",
+                        "scope": "SYSTEM"
+                    },
+                    "properties": {
+                        "project": "project-cb-demo",
+                        "allowSchemaRelaxation": "true",
+                        "schema": "{\"type\":\"record\",\"name\":\"etlSchemaBody\",\"fields\":[{\"name\":\"device\",\"type\":[\"string\",\"null\"]},{\"name\":\"avg_temp\",\"type\":[\"double\",\"null\"]},{\"name\":\"avg_visc\",\"type\":[\"double\",\"null\"]},{\"name\":\"sess_end\",\"type\":[\"long\",\"null\"]}]}",
+                        "referenceName": "eventsWindowedToBigQuery",
+                        "dataset": "sensor_data",
+                        "table": "sensor_window",
+                        "serviceFilePath": "auto-detect",
+                        "bucket": "gs://cb-demo-temp"
+                    }
+                },
+                "outputSchema": [
+                    {
+                        "name": "etlSchemaBody",
+                        "schema": "{\"type\":\"record\",\"name\":\"etlSchemaBody\",\"fields\":[{\"name\":\"device\",\"type\":[\"string\",\"null\"]},{\"name\":\"avg_temp\",\"type\":[\"double\",\"null\"]},{\"name\":\"avg_visc\",\"type\":[\"double\",\"null\"]},{\"name\":\"sess_end\",\"type\":[\"long\",\"null\"]}]}"
+                    }
+                ],
+                "inputSchema": [
+                    {
+                        "name": "GroupByDevice",
+                        "schema": "{\"type\":\"record\",\"name\":\"etlSchemaBody\",\"fields\":[{\"name\":\"device\",\"type\":\"string\"},{\"name\":\"avg_temp\",\"type\":\"double\"},{\"name\":\"avg_visc\",\"type\":\"double\"},{\"name\":\"sess_end\",\"type\":\"long\"}]}"
+                    }
+                ]
+            },
+            {
+                "name": "BigQuery - sensor events",
+                "plugin": {
+                    "name": "BigQueryTable",
+                    "type": "batchsink",
+                    "label": "BigQuery - sensor events",
+                    "artifact": {
+                        "name": "google-cloud",
+                        "version": "0.12.6",
+                        "scope": "SYSTEM"
+                    },
+                    "properties": {
+                        "project": "project-cb-demo",
+                        "allowSchemaRelaxation": "true",
+                        "schema": "{\"type\":\"record\",\"name\":\"etlSchemaBody\",\"fields\":[{\"name\":\"event_time\",\"type\":[\"string\",\"null\"]},{\"name\":\"viscosity\",\"type\":[\"double\",\"null\"]},{\"name\":\"temperature\",\"type\":[\"int\",\"null\"]},{\"name\":\"device\",\"type\":[\"string\",\"null\"]}]}",
+                        "referenceName": "eventsToBigQuery",
+                        "dataset": "sensor_data",
+                        "table": "sensor_events",
+                        "bucket": "gs://cb-demo-temp"
+                    }
+                },
+                "outputSchema": [
+                    {
+                        "name": "etlSchemaBody",
+                        "schema": "{\"type\":\"record\",\"name\":\"etlSchemaBody\",\"fields\":[{\"name\":\"event_time\",\"type\":[\"string\",\"null\"]},{\"name\":\"viscosity\",\"type\":[\"double\",\"null\"]},{\"name\":\"temperature\",\"type\":[\"int\",\"null\"]},{\"name\":\"device\",\"type\":[\"string\",\"null\"]}]}"
+                    }
+                ],
+                "inputSchema": [
+                    {
+                        "name": "Wrangler",
+                        "schema": "{\"type\":\"record\",\"name\":\"etlSchemaBody\",\"fields\":[{\"name\":\"event_time\",\"type\":[\"string\",\"null\"]},{\"name\":\"viscosity\",\"type\":[\"double\",\"null\"]},{\"name\":\"temperature\",\"type\":[\"int\",\"null\"]},{\"name\":\"device\",\"type\":[\"string\",\"null\"]},{\"name\":\"TIMESTAMP\",\"type\":[{\"type\":\"long\",\"logicalType\":\"timestamp-micros\"},\"null\"]}]}"
+                    }
+                ]
+            },
+            {
+                "name": "ErrorCollector",
+                "plugin": {
+                    "name": "ErrorCollector",
+                    "type": "errortransform",
+                    "label": "ErrorCollector",
+                    "artifact": {
+                        "name": "core-plugins",
+                        "version": "2.2.1",
+                        "scope": "SYSTEM"
+                    },
+                    "properties": {
+                        "messageField": "msg",
+                        "codeField": "code",
+                        "stageField": "node"
+                    }
+                },
+                "outputSchema": [
+                    {
+                        "name": "etlSchemaBody",
+                        "schema": "{\"type\":\"record\",\"name\":\"etlSchemaBody\",\"fields\":[{\"name\":\"body\",\"type\":\"string\"},{\"name\":\"attributes\",\"type\":{\"type\":\"map\",\"keys\":\"string\",\"values\":\"string\"}},{\"name\":\"msg\",\"type\":\"string\"},{\"name\":\"code\",\"type\":\"int\"},{\"name\":\"node\",\"type\":\"string\"},{\"name\":\"TIMESTAMP\",\"type\":{\"type\":\"long\",\"logicalType\":\"timestamp-micros\"}}]}"
+                    }
+                ],
+                "inputSchema": [
+                    {
+                        "name": "Wrangler",
+                        "schema": "{\"type\":\"record\",\"name\":\"etlSchemaBody\",\"fields\":[{\"name\":\"TIMESTAMP\",\"type\":{\"type\":\"long\",\"logicalType\":\"timestamp-micros\"}},{\"name\":\"body\",\"type\":\"string\"},{\"name\":\"attributes\",\"type\":{\"type\":\"map\",\"keys\":\"string\",\"values\":\"string\"}}]}"
+                    }
+                ]
+            },
+            {
+                "name": "parseError",
+                "plugin": {
+                    "name": "Wrangler",
+                    "type": "transform",
+                    "label": "parseError",
+                    "artifact": {
+                        "name": "wrangler-transform",
+                        "version": "4.0.1",
+                        "scope": "SYSTEM"
+                    },
+                    "properties": {
+                        "field": "*",
+                        "precondition": "false",
+                        "threshold": "1",
+                        "schema": "{\"type\":\"record\",\"name\":\"etlSchemaBody\",\"fields\":[{\"name\":\"body\",\"type\":\"string\"},{\"name\":\"msg\",\"type\":\"string\"},{\"name\":\"code\",\"type\":\"string\"},{\"name\":\"node\",\"type\":\"string\"}]}",
+                        "directives": "drop TIMESTAMP\ndrop attributes\n"
+                    }
+                },
+                "outputSchema": [
+                    {
+                        "name": "etlSchemaBody",
+                        "schema": "{\"type\":\"record\",\"name\":\"etlSchemaBody\",\"fields\":[{\"name\":\"body\",\"type\":\"string\"},{\"name\":\"msg\",\"type\":\"string\"},{\"name\":\"code\",\"type\":\"string\"},{\"name\":\"node\",\"type\":\"string\"}]}"
+                    }
+                ],
+                "inputSchema": [
+                    {
+                        "name": "ErrorCollector",
+                        "schema": "{\"type\":\"record\",\"name\":\"etlSchemaBody\",\"fields\":[{\"name\":\"body\",\"type\":\"string\"},{\"name\":\"attributes\",\"type\":{\"type\":\"map\",\"keys\":\"string\",\"values\":\"string\"}},{\"name\":\"msg\",\"type\":\"string\"},{\"name\":\"code\",\"type\":\"int\"},{\"name\":\"node\",\"type\":\"string\"},{\"name\":\"TIMESTAMP\",\"type\":{\"type\":\"long\",\"logicalType\":\"timestamp-micros\"}}]}"
+                    }
+                ]
+            },
+            {
+                "name": "BigQuery errors",
+                "plugin": {
+                    "name": "BigQueryTable",
+                    "type": "batchsink",
+                    "label": "BigQuery errors",
+                    "artifact": {
+                        "name": "google-cloud",
+                        "version": "0.12.6",
+                        "scope": "SYSTEM"
+                    },
+                    "properties": {
+                        "project": "project-cb-demo",
+                        "allowSchemaRelaxation": "true",
+                        "serviceFilePath": "auto-detect",
+                        "schema": "{\"type\":\"record\",\"name\":\"etlSchemaBody\",\"fields\":[{\"name\":\"body\",\"type\":\"string\"},{\"name\":\"msg\",\"type\":\"string\"},{\"name\":\"code\",\"type\":\"string\"},{\"name\":\"node\",\"type\":\"string\"}]}",
+                        "referenceName": "errorsToBigQuery",
+                        "dataset": "error_logs",
+                        "table": "sensor_errors",
+                        "bucket": "gs://cb-demo-temp"
+                    }
+                },
+                "outputSchema": [
+                    {
+                        "name": "etlSchemaBody",
+                        "schema": "{\"type\":\"record\",\"name\":\"etlSchemaBody\",\"fields\":[{\"name\":\"body\",\"type\":\"string\"},{\"name\":\"msg\",\"type\":\"string\"},{\"name\":\"code\",\"type\":\"string\"},{\"name\":\"node\",\"type\":\"string\"}]}"
+                    }
+                ],
+                "inputSchema": [
+                    {
+                        "name": "parseError",
+                        "schema": "{\"type\":\"record\",\"name\":\"etlSchemaBody\",\"fields\":[{\"name\":\"body\",\"type\":\"string\"},{\"name\":\"msg\",\"type\":\"string\"},{\"name\":\"code\",\"type\":\"string\"},{\"name\":\"node\",\"type\":\"string\"}]}"
+                    }
+                ]
+            }
+        ],
+        "batchInterval": "1s",
+        "clientResources": {
+            "memoryMB": 2048,
+            "virtualCores": 1
+        },
+        "disableCheckpoints": false,
+        "checkpointDir": "gs://cb_demo_checkpoint",
+        "stopGracefully": true,
+        "description": "Demo stream pipeline for sensor data of multiple devices"
+    }
+}
