@@ -2,6 +2,6 @@ Faker
 Pandas
 Numpy
 google-cloud-pubsub
-Finspark
+Findspark
 pyspark
 jupyter
