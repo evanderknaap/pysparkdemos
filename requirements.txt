@@ -2,6 +2,7 @@ Faker
 Pandas
 Numpy
 google-cloud-pubsub
+google-cloud-bigquery
 Findspark
 pyspark
 jupyter

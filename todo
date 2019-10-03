@@ -1,0 +1,22 @@
+Process
+[ ] Plan holiday
+[ ] Book hotel
+[ ] Book Flight 
+[ ] Read VLKW
+[ ] Plan Pyramid
+[ ] Understand initialization actions
+
+Deliverables
+[ ] Demo Kafka + BigQuery on sensory data
+[ ] Think of next Demo to build 
+[ ] ...
+
+[*] Create sensor script
+[*] Code to create kafka cluster
+[*] Create kafka topic and messages
+[ ] Create sensory table on Google Cloud
+[ ] Write code to parse sensory data
+[ ] Write code to write to bigquery
+[ ] Add windowing code
+[ ] Create window table on bigquery
+[ ]  
