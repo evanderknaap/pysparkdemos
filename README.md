@@ -1,9 +1,9 @@
 # README 
 
-Demos of streaming data into BigQuery using pyspark jobs and Data Fusion. 
-- The first demo is running locally textSocketStream, and stream data to BigQuery
-- The second demo runs on dataproc
-- The third demo runs on DataFusion
+Demos of streaming data with pySpark.
+- The first demo is running locally on a textSocketStream, and stream Data to BigQuery
+- The second demo runs on Dataproc, reads kafka data and dumps to output
+- The third demo runs on a second Dataporc cluster, reads kafka data, streams to BigQuery and computes a moving average in a window.
 
 ## Demo 1
 
@@ -113,7 +113,7 @@ Check if the messages exist. If all goes well, you should see messages flowing i
     --bootstrap-server $WORKER:9092 \
     --topic test --from-beginning
 ```
-#### Parse kafka messages on DataProc
+### Run the demo: Spark on Dataproc
 Next, lets's see if we can get messages incoming into our pyspark application. We are going to deploy a pyspark application, that prints 10 records, every 5 seconds in the output.
 ``` Bash
 gcloud dataproc jobs submit pyspark --cluster=$CLUSTER\
@@ -133,8 +133,8 @@ gcloud dataproc jobs kill <JOB_ID> --region=europe-west1
 Next, let's deploy a second cluster to run our pyspark job, called **spark**. Since we are using the Python SDK wrapper around the BigQuery **table.Insertall** API, we will add the bigquery library and intall it using Pip.
 One can also use conda to install packages. However, the channels used in the startup script do not include the google cloud SDK, so we'll use Pip instead.
 
-#### Setup
-#### Create the second cluster
+### Setup
+Create thesecond cluster.
 ```bash
 gcloud dataproc clusters create spark\
     --optional-components ANACONDA\
@@ -142,16 +142,7 @@ gcloud dataproc clusters create spark\
     --region europe-west1\
     --initialization-actions gs://dataproc-initialization-actions/python/pip-install.sh
 ```
-Next, submit our job to our fresh cluster.
-``` Bash
-gcloud dataproc jobs submit pyspark --cluster=spark\
-    --region europe-west1\
-    --properties spark.jars.packages=org.apache.spark:spark-streaming-kafka-0-8_2.11:2.0.1\
-    sensor_stream_to_bigquery.py     
-```
-If all goes well we should have data streaming in.
-
-#### Streaming windows to BigQuery 
+### Running the demo: kafka to BigQuery
 Finally, we'll create a slightly more exotic stream to BigQuery. The stream will be parsed, and send to a second table, called *TableB*. We will also compute the average of *reading_1* in the stream over a sliding window, and
 pprint the result to output.
 
