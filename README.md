@@ -166,6 +166,7 @@ If all goes well, you should see the data stream into BigQuery. Your terminal wi
 
 ## Clean up 
 ```bash
+gsutil rm -r gs://$PROJECT
 bq rm streaming_dataset
 gcloud dataproc clusters delete $CLUSTER --region europe-west1
 gcloud dataproc clusters delete spark --region europe-west1
