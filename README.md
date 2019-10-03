@@ -53,7 +53,7 @@ data that is submitted to the topic.
 On the same cluster we deploy a simple pyspark application that reads the data
 line by line, and dump it to the same table we created before.
 
-#### Setup 
+### Setup 
 Set environment variables
 ```
 PROJECT=<your-project>
@@ -113,7 +113,7 @@ Check if the messages exist. If all goes well, you should see messages flowing i
     --bootstrap-server $WORKER:9092 \
     --topic test --from-beginning
 ```
-#### Kafka stream into Spark running on DataProc
+#### Parse kafka messages on DataProc
 Next, lets's see if we can get messages incoming into our pyspark application. We are going to deploy a pyspark application, that prints 10 records, every 5 seconds in the output.
 ``` Bash
 gcloud dataproc jobs submit pyspark --cluster=$CLUSTER\
@@ -129,12 +129,12 @@ Paste the Job_ID in the follow command to kill it
 ```bash
 gcloud dataproc jobs kill <JOB_ID> --region=europe-west1
 ```
-### Demo 3  Streaming to BigQuery
+## Demo 3 streaming to BigQuery
 Next, let's deploy a second cluster to run our pyspark job, called **spark**. Since we are using the Python SDK wrapper around the BigQuery **table.Insertall** API, we will add the bigquery library and intall it using Pip.
 One can also use conda to install packages. However, the channels used in the startup script do not include the google cloud SDK, so we'll use Pip instead.
 
-TODO create new table
-
+#### Setup
+#### Create the second cluster
 ```bash
 gcloud dataproc clusters create spark\
     --optional-components ANACONDA\
